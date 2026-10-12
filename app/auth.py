@@ -6,27 +6,60 @@ from .models import Member
 auth_bp=Blueprint('auth', __name__)
 @auth_bp.route('/register', methods=['GET','POST'])
 def register():
-    if current_user.is_authenticated: return redirect(url_for('main.dashboard'))
-    if request.method=='POST':
-        name=request.form.get('full_name','').strip(); email=request.form.get('email','').strip().lower(); password=request.form.get('password',''); confirm=request.form.get('confirm_password','')
-        errors=[]
-        if not name or len(name)>150: errors.append('Enter a name up to 150 characters.')
-        if not email or len(email)>254 or '@' not in email: errors.append('Enter a valid email.')
-        if len(password)<12: errors.append('Password must be at least 12 characters.')
-        if password!=confirm: errors.append('Passwords do not match.')
-        if db.session.scalar(select(Member).where(Member.email==email)): errors.append('An account with that email already exists.')
-        exp=request.form.get('experience_years','').strip(); experience=None
+    if request.method == 'GET' and current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    if request.method == 'POST':
+        if current_user.is_authenticated:
+            email = request.form.get('email', '').strip().lower()
+            if email and db.session.scalar(select(Member).where(Member.email == email)):
+                flash('An account with that email already exists.', 'error')
+                return render_template('register.html'), 400
+            return redirect(url_for('main.dashboard'))
+
+        name = request.form.get('full_name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+        errors = []
+        if not name or len(name) > 150:
+            errors.append('Enter a name up to 150 characters.')
+        if not email or len(email) > 254 or '@' not in email:
+            errors.append('Enter a valid email.')
+        if len(password) < 12:
+            errors.append('Password must be at least 12 characters.')
+        if password != confirm:
+            errors.append('Passwords do not match.')
+        if db.session.scalar(select(Member).where(Member.email == email)):
+            errors.append('An account with that email already exists.')
+
+        exp = request.form.get('experience_years', '').strip()
+        experience = None
         if exp:
             try:
-                experience=float(exp)
-                if not 0<=experience<=80: raise ValueError()
-            except ValueError: errors.append('Experience must be between 0 and 80 years.')
+                experience = float(exp)
+                if not 0 <= experience <= 80:
+                    raise ValueError()
+            except ValueError:
+                errors.append('Experience must be between 0 and 80 years.')
         if errors:
-            for e in errors: flash(e,'error')
-            return render_template('register.html'),400
-        m=Member(full_name=name,email=email,phone=request.form.get('phone','').strip() or None,city=request.form.get('city','').strip() or None,skills=request.form.get('skills','').strip() or None,experience_years=experience)
-        m.set_password(password); db.session.add(m); db.session.commit(); login_user(m)
-        flash('Registration successful. You can now upload documents.','success'); return redirect(url_for('main.dashboard'))
+            for e in errors:
+                flash(e, 'error')
+            return render_template('register.html'), 400
+
+        m = Member(
+            full_name=name,
+            email=email,
+            phone=request.form.get('phone', '').strip() or None,
+            city=request.form.get('city', '').strip() or None,
+            skills=request.form.get('skills', '').strip() or None,
+            experience_years=experience,
+        )
+        m.set_password(password)
+        db.session.add(m)
+        db.session.commit()
+        login_user(m)
+        flash('Registration successful. You can now upload documents.', 'success')
+        return redirect(url_for('main.dashboard'))
     return render_template('register.html')
 @auth_bp.route('/login', methods=['GET','POST'])
 def login():
